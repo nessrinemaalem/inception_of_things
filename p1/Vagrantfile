@@ -13,6 +13,8 @@ Vagrant.configure("2") do |config|
       vb.cpus = 1
       vb.memory = 1024
     end
+
+    server.vm.provision "shell", path: "scripts/server.sh"
   end
 
   config.vm.define "imaalemSW" do |worker|
@@ -25,6 +27,8 @@ Vagrant.configure("2") do |config|
       vb.cpus = 1
       vb.memory = 1024
     end
+
+    worker.vm.provision "shell", path: "scripts/worker.sh"
   end
 
 end
