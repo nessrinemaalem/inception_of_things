@@ -1,34 +1,55 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
+# Le sujet autorise explicitement n'importe quel provider Vagrant :
+#   "You can use any tools you want to set up your host virtual machine
+#    as well as the provider used in Vagrant." (General guidelines)
+#
+# Cette machine hote est elle-meme une VM VirtualBox. Lancer VirtualBox a
+# l'interieur (VirtualBox dans VirtualBox) est officiellement non supporte et
+# tres instable en imbrique : Guru Meditation (triple-fault) et derive
+# d'horloge. On utilise donc libvirt/KVM, nettement plus stable en nested
+# (les flags vmx/svm sont bien exposes a cette VM).
+ENV['VAGRANT_DEFAULT_PROVIDER'] = 'libvirt'
+
 Vagrant.configure("2") do |config|
+  # Debian 13 (trixie) = derniere version stable de Debian, avec une variante
+  # libvirt disponible sur la box officielle Debian.
+  config.vm.box = "debian/trixie64"
+
+  # Transport du token du cluster : le server ecrit le token genere par K3s
+  # dans ce dossier synchronise, l'agent l'y relit. Avec libvirt on utilise 9p
+  # (partage live bidirectionnel, sans démon NFS a installer cote hote).
+  # accessmode "squash" : les ecritures faites en root dans le guest
+  # deviennent des fichiers de l'utilisateur hote -> le server peut deposer le
+  # token et l'agent peut le relire.
+  config.vm.synced_folder ".", "/vagrant", type: "9p", accessmode: "squash"
 
   config.vm.define "imaalemS" do |server|
-    server.vm.box = "debian/trixie64"
     server.vm.hostname = "imaalemS"
     server.vm.network "private_network", ip: "192.168.56.110"
 
-    server.vm.provider "virtualbox" do |vb|
-      vb.name = "imaalemS"
-      vb.cpus = 1
-      vb.memory = 1024
+    server.vm.provider "libvirt" do |lv|
+      lv.default_prefix = ""   # nom de domaine libvirt = "imaalemS" (sans prefixe)
+      lv.cpus = 1
+      lv.memory = 1024
+      lv.graphics_type = "none"   # pas de serveur VNC/SPICE : on tourne en headless
     end
 
     server.vm.provision "shell", path: "scripts/server.sh"
   end
 
   config.vm.define "imaalemSW" do |worker|
-    worker.vm.box = "debian/trixie64"
     worker.vm.hostname = "imaalemSW"
     worker.vm.network "private_network", ip: "192.168.56.111"
 
-    worker.vm.provider "virtualbox" do |vb|
-      vb.name = "imaalemSW"
-      vb.cpus = 1
-      vb.memory = 1024
+    worker.vm.provider "libvirt" do |lv|
+      lv.default_prefix = ""   # nom de domaine libvirt = "imaalemSW"
+      lv.cpus = 1
+      lv.memory = 1024
+      lv.graphics_type = "none"   # pas de serveur VNC/SPICE : on tourne en headless
     end
 
     worker.vm.provision "shell", path: "scripts/worker.sh"
   end
-
 end

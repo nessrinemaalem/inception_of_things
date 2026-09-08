@@ -13,9 +13,11 @@ command -v curl >/dev/null 2>&1 || (apt-get update && apt-get install -y curl)
 IFACE=$(ip -4 -o addr show | awk -v ip="${SERVER_IP}" '$4 ~ ip {print $2}')
 
 # Installation de K3s en mode server
+# On ne fixe PAS --bind-address : par defaut l'API server ecoute sur 0.0.0.0,
+# donc a la fois sur 127.0.0.1 (kubectl local via le kubeconfig) et sur
+# 192.168.56.110 (join de l'agent). --advertise-address annonce la bonne IP.
 curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server \
   --node-ip=${SERVER_IP} \
-  --bind-address=${SERVER_IP} \
   --advertise-address=${SERVER_IP} \
   --flannel-iface=${IFACE} \
   --disable traefik \
