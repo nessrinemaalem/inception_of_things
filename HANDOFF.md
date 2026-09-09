@@ -133,38 +133,58 @@ On passe donc en **KVM-dans-KVM**, la combinaison la plus solide. Tout ce qui a 
 installé dans la VM hôte (vagrant, vagrant-libvirt, qemu, `qemu.conf` patché) reste
 valable : **pas de réinstallation de Debian**, on convertit le disque existant.
 
+### Contraintes de la machine 42 (relevées le 2026-09-09, côté PC Fedora)
+
+Ces trois points conditionnent toute la procédure :
+
+| Point | Constat | Conséquence |
+|---|---|---|
+| `/home/imaalem` | **4,7 Go, 1,7 Go libres** (partition `nvme1n1` dédiée) | Impossible d'y mettre un qcow2. On utilise **`/goinfre/$USER/VMs`** (137 Go, 96 Go libres, NVMe). Attention : `/goinfre` est purgé régulièrement → ne pas y laisser l'unique copie. |
+| Groupe `libvirt` | l'utilisateur **n'y est pas**, et `qemu:///system` renvoie « authentication cancelled » (polkit) ; `sudo` demande un mot de passe | On utilise **`qemu:///session`** : ça marche sans droits, et qemu tourne sous le compte utilisateur → il lit `/goinfre/$USER` (0700) sans bidouille de permissions. |
+| Réseau en session | le réseau NAT `default` de libvirt n'existe pas en session | `--network user,model=virtio` (**`passt` est installé**). Sortant OK (apt, box vagrant) ; c'est tout ce dont la VM hôte a besoin. |
+
+Autres vérifs faites : `nested = Y` ✅, `virt-manager` et `virt-viewer` présents ✅,
+P-cores = `0-15` / E-cores = `16-19` ✅ (confirme le point B).
+
 ### Étapes sur le PC Fedora
 
+Tout est automatisé — éteindre proprement la VM VirtualBox, puis :
+
 ```bash
-# 0. Vérifier que le nested KVM est actif (doit renvoyer Y) — VALIDÉ
-cat /sys/module/kvm_intel/parameters/nested
-
-# 1. Éteindre proprement la VM VirtualBox, puis convertir son disque
-qemu-img convert -p -f vdi -O qcow2 \
-  "/run/media/imaalem/mémoires/42/VMs/iot-host/iot-host.vdi" \
-  ~/VMs/iot-host.qcow2       # ~ = disque INTERNE, on quitte l'USB au passage
-
-# 2. Importer la VM sous libvirt, CPU passé en direct (expose VMX proprement)
-virt-install --import --name iot-host --memory 8192 --vcpus 4 \
-  --cpu host-passthrough --disk ~/VMs/iot-host.qcow2,bus=sata \
-  --os-variant debian12 --network default --graphics spice --noautoconsole
-
-# 3. Épingler les vCPU sur les P-cores (neutralise le point B)
-#    Sur i7-12700 : P-cores = CPU 0-15, E-cores = 16-19
-for i in 0 1 2 3; do virsh vcpupin iot-host $i 0-15; done
-virsh emulatorpin iot-host 0-15 --live
+bash ~/Desktop/iot/migrate-to-kvm.sh
 ```
 
+Le script vérifie les pré-requis (nested, outils, VM éteinte, place disque), convertit
+le VDI en qcow2 vers `/goinfre/$USER/VMs`, importe le domaine en `qemu:///session` avec
+`--cpu host-passthrough`, et épingle les vCPU sur les P-cores.
+
+Pour ne plus avoir à taper `-c qemu:///session` :
+
+```bash
+echo 'export LIBVIRT_DEFAULT_URI=qemu:///session' >> ~/.bashrc
+```
+
+Piloter la VM ensuite : `virt-manager` (choisir la connexion « QEMU/KVM Utilisateur »),
+ou `virsh start|shutdown iot-host`.
+
 ### Une fois dans la VM migrée
+
+Le nom de l'interface réseau change entre VirtualBox et KVM (le VDI garde l'ancienne
+config). **Si la VM n'a plus de réseau**, c'est ça :
+
+```bash
+ip -br link                       # relever le nouveau nom (ex. enp1s0)
+sudo nano /etc/network/interfaces # remplacer l'ancien nom par le nouveau
+sudo systemctl restart networking
+```
+
+Puis :
 
 ```bash
 cd ~/Bureau/iot/p1
 rm -rf .vagrant          # l'état vagrant ne survit pas au changement d'hôte
 vagrant up --no-parallel
 ```
-
-Si le réseau a changé de nom d'interface après la migration, corriger dans la VM avant
-de relancer.
 
 ## Vérifications de fin
 
@@ -179,7 +199,8 @@ Puis enchaîner sur les **parties 2 (K3s + 3 apps + Ingress) et 3 (K3d + Argo CD
 
 Dans l'ordre, du moins cher au plus cher :
 
-1. Vérifier que l'épinglage P-cores est bien actif : `virsh vcpuinfo iot-host`.
+1. Vérifier que l'épinglage P-cores est bien actif : `virsh -c qemu:///session vcpuinfo iot-host`
+   (l'épinglage peut être refusé en session : le script le signale sans échouer).
 2. Réduire la VM hôte à **2 vCPU** (moins de threads à migrer entre cœurs).
 3. Passer les nœuds Vagrant en **1 seul nœud** le temps de valider la chaîne, puis
    rajouter le worker.
@@ -197,5 +218,9 @@ Dans l'ordre, du moins cher au plus cher :
 - `p1/scripts/host-setup.sh` — prépare la VM hôte (vagrant + libvirt/KVM + `qemu.conf`).
   **À relancer tel quel si on repart d'une VM neuve.** Testé OK le 2026-09-09.
 - `p1/scripts/check_cluster.sh` — vérifs rapides pour la soutenance.
+- `migrate-to-kvm.sh` (racine du dépôt) — **à lancer sur le PC Fedora** : migre la VM
+  hôte de VirtualBox vers KVM/libvirt (conversion VDI→qcow2 vers `/goinfre`, import en
+  `qemu:///session`, réseau `passt`, épinglage P-cores). Adapté aux contraintes de la
+  machine 42 listées plus haut.
 - `create-host-vm.sh` (dossier partagé, hors dépôt) — **obsolète** : crée la VM sous
   VirtualBox, sur le disque externe. Remplacé par la procédure KVM ci-dessus.
