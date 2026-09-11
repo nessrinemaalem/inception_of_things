@@ -1,0 +1,91 @@
+# =============================================================================
+# app3 — application par DEFAUT
+#
+# Contrairement a app1 et app2, app3 n'est associee a aucun nom d'hote :
+# elle repond a tout ce qui ne matche ni app1.com ni app2.com (dont un simple
+# "curl 192.168.56.110"). Cette particularite ne se joue PAS ici : ce fichier
+# est un clone d'app1.yaml. C'est l'Ingress qui exprime la regle par defaut.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 1. ConfigMap : la page HTML
+# -----------------------------------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app3-html
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html lang="fr">
+      <head>
+        <meta charset="utf-8">
+        <title>app3</title>
+      </head>
+      <body style="background:#e53935; color:#fff; font-family:sans-serif;
+                   display:flex; align-items:center; justify-content:center;
+                   height:100vh; margin:0;">
+        <h1 style="font-size:4rem;">Hello from app3</h1>
+      </body>
+    </html>
+
+---
+# -----------------------------------------------------------------------------
+# 2. Deployment : une seule replique
+# -----------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app3
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: app3
+
+  template:
+    metadata:
+      labels:
+        app: app3
+    spec:
+      containers:
+        - name: app3
+          image: nginx:alpine
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: html
+              mountPath: /usr/share/nginx/html
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 2
+            periodSeconds: 5
+      volumes:
+        - name: html
+          configMap:
+            name: app3-html
+
+---
+# -----------------------------------------------------------------------------
+# 3. Service
+# -----------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: app3
+spec:
+  type: ClusterIP
+  selector:
+    app: app3
+  ports:
+    - port: 80
+      targetPort: 80

@@ -1,0 +1,116 @@
+# =============================================================================
+# app1 — application accessible via le host "app1.com"
+#
+# Trois objets dans un seul fichier, separes par "---" :
+#   1. ConfigMap  : le contenu HTML de la page
+#   2. Deployment : les Pods nginx qui servent cette page
+#   3. Service    : l'adresse stable devant ces Pods
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 1. ConfigMap : la page HTML, stockee dans le cluster
+# -----------------------------------------------------------------------------
+# Un ConfigMap est un simple dictionnaire cle -> valeur stocke dans Kubernetes.
+# Ici la cle est "index.html" ; quand on montera ce ConfigMap comme volume,
+# Kubernetes creera un FICHIER nomme "index.html" contenant cette valeur.
+# C'est ce qui nous permet d'utiliser l'image nginx officielle sans la modifier.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app1-html
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html lang="fr">
+      <head>
+        <meta charset="utf-8">
+        <title>app1</title>
+      </head>
+      <body style="background:#1e88e5; color:#fff; font-family:sans-serif;
+                   display:flex; align-items:center; justify-content:center;
+                   height:100vh; margin:0;">
+        <h1 style="font-size:4rem;">Hello from app1</h1>
+      </body>
+    </html>
+
+---
+# -----------------------------------------------------------------------------
+# 2. Deployment : gere les Pods nginx
+# -----------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app1
+spec:
+  # Une seule replique pour app1 (le sujet n'en demande 3 que pour app2).
+  replicas: 1
+
+  # selector = "quels Pods ce Deployment doit-il piloter ?"
+  # Il doit OBLIGATOIREMENT correspondre aux labels du template ci-dessous,
+  # sinon Kubernetes refuse le manifest.
+  selector:
+    matchLabels:
+      app: app1
+
+  # template = le moule a partir duquel chaque Pod est fabrique.
+  template:
+    metadata:
+      labels:
+        app: app1        # <- le label repris par le selector ET par le Service
+    spec:
+      containers:
+        - name: app1
+          image: nginx:alpine     # ~10 Mo, ideal sur une VM a 1 Go de RAM
+          ports:
+            - containerPort: 80   # nginx ecoute sur le port 80 dans le conteneur
+
+          # On remplace le dossier web par defaut de nginx par notre volume.
+          volumeMounts:
+            - name: html
+              mountPath: /usr/share/nginx/html
+
+          # Reserves volontairement basses : 5 Pods + K3s + Traefik doivent
+          # tenir sur 1 CPU et 1024 Mo.
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+
+          # Traefik n'envoie du trafic qu'aux Pods declares "Ready".
+          # Cette sonde evite les 404/502 pendant les quelques secondes
+          # de demarrage de nginx.
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 2
+            periodSeconds: 5
+
+      # Le volume "html" n'est pas un disque : c'est le ConfigMap ci-dessus,
+      # projete sous forme de fichiers.
+      volumes:
+        - name: html
+          configMap:
+            name: app1-html
+
+---
+# -----------------------------------------------------------------------------
+# 3. Service : l'adresse stable devant les Pods
+# -----------------------------------------------------------------------------
+# Les IP des Pods changent a chaque redemarrage. Le Service fournit un nom DNS
+# interne fixe ("app1") et repartit le trafic sur tous les Pods portant le
+# label selectionne. C'est vers CE nom que l'Ingress pointera.
+apiVersion: v1
+kind: Service
+metadata:
+  name: app1
+spec:
+  type: ClusterIP        # joignable uniquement depuis l'interieur du cluster
+                         # (c'est Traefik qui expose le tout vers l'exterieur)
+  selector:
+    app: app1            # <- rattache le Service aux Pods du Deployment
+  ports:
+    - port: 80           # port du Service (celui que l'Ingress appellera)
+      targetPort: 80     # port du conteneur nginx

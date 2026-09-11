@@ -1,0 +1,89 @@
+# =============================================================================
+# ingress.yaml — le routage par nom d'hote
+#
+# C'est LE fichier a montrer aux correcteurs (kubectl get ingress).
+#
+# Un Ingress n'est PAS un programme : c'est une table de routage declarative.
+# C'est Traefik (l'Ingress Controller livre par defaut avec K3s) qui la lit et
+# qui, lui, recoit reellement le trafic sur le port 80 de la VM.
+#
+#   curl -H "Host: app1.com" 192.168.56.110
+#            │
+#            ▼
+#      Traefik (port 80 de la VM)  --lit-->  cet Ingress
+#            │
+#            ▼
+#      Service app1  -->  Pod(s) app1
+#
+# Routage vise :
+#   Host: app1.com      -> app1
+#   Host: app2.com      -> app2
+#   tout le reste       -> app3   (regle par defaut)
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: apps-ingress
+spec:
+  # Quel Ingress Controller doit prendre en charge cet objet.
+  # K3s installe Traefik et enregistre une IngressClass nommee "traefik"
+  # (verifiable avec : kubectl get ingressclass).
+  ingressClassName: traefik
+
+  rules:
+    # -------------------------------------------------------------------------
+    # Regle 1 : app1.com -> Service app1
+    # -------------------------------------------------------------------------
+    - host: app1.com
+      http:
+        paths:
+          - path: /
+            # Prefix : matche "/" et tout ce qui commence par "/",
+            # donc l'integralite du site.
+            pathType: Prefix
+            backend:
+              service:
+                # Reference par NOM au Service (pas par label) : c'est le
+                # metadata.name du Service dans app1.yaml.
+                name: app1
+                port:
+                  # Le port du SERVICE (spec.ports.port), pas celui du conteneur.
+                  number: 80
+
+    # -------------------------------------------------------------------------
+    # Regle 2 : app2.com -> Service app2 (qui repartit sur les 3 repliques)
+    # -------------------------------------------------------------------------
+    - host: app2.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: app2
+                port:
+                  number: 80
+
+    # -------------------------------------------------------------------------
+    # Regle 3 : LA REGLE PAR DEFAUT -> Service app3
+    # -------------------------------------------------------------------------
+    # Le champ "host" est volontairement ABSENT.
+    # Une regle sans "host" ne teste aucun nom d'hote : elle matche n'importe
+    # quelle valeur de l'en-tete Host, y compris une IP brute
+    # ("curl 192.168.56.110" envoie "Host: 192.168.56.110").
+    #
+    # Pourquoi app1.com ne tombe pas ici alors que cette regle matche tout ?
+    # Traefik traduit chaque regle en une route ponderee et la route la plus
+    # SPECIFIQUE gagne :
+    #     Host(`app1.com`) && PathPrefix(`/`)   -> plus specifique  -> prioritaire
+    #     PathPrefix(`/`)                       -> moins specifique -> secours
+    # L'ordre d'ecriture dans ce fichier n'a donc aucune importance.
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: app3
+                port:
+                  number: 80
