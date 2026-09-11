@@ -1,0 +1,65 @@
+# =============================================================================
+# application.yaml — declare a Argo CD QUOI deployer, DEPUIS OU, et OU.
+#
+# "Application" n'est pas un type standard de Kubernetes : c'est une CRD
+# (CustomResourceDefinition) installee par Argo CD. L'API accepte ce kind
+# uniquement parce qu'Argo CD a enrichi le cluster avec ce nouveau type.
+#
+# C'est ce seul objet qui relie le depot GitHub public au namespace dev.
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: playground
+  # ATTENTION : l'objet Application vit dans le namespace "argocd" (la ou tourne
+  # le controleur qui le lit), PAS dans "dev". Le namespace de deploiement est
+  # indique plus bas, dans "destination". C'est une confusion frequente.
+  namespace: argocd
+
+spec:
+  # "default" est le projet cree automatiquement par Argo CD. Les projets
+  # servent a cloisonner les droits quand plusieurs equipes partagent Argo CD.
+  project: default
+
+  # ---------------------------------------------------------------------------
+  # SOURCE : ou Argo CD va chercher la verite
+  # ---------------------------------------------------------------------------
+  source:
+    # En HTTPS et non en SSH : le depot est public, Argo CD le clone donc
+    # anonymement, sans avoir a gerer de cle privee dans le cluster.
+    repoURL: https://github.com/nessrinemaalem/imaalem-iot-app.git
+    # HEAD = la derniere version de la branche par defaut (main).
+    # On pourrait figer un tag ou un commit precis a la place.
+    targetRevision: HEAD
+    # "." = la racine du depot : Argo CD y applique tous les YAML trouves
+    # (deployment.yaml et service.yaml).
+    path: .
+
+  # ---------------------------------------------------------------------------
+  # DESTINATION : ou Argo CD deploie
+  # ---------------------------------------------------------------------------
+  destination:
+    # Adresse interne du cluster ou tourne Argo CD lui-meme. Argo CD sait aussi
+    # piloter des clusters distants ; ici c'est le sien.
+    server: https://kubernetes.default.svc
+    # Le namespace exige par le sujet.
+    namespace: dev
+
+  # ---------------------------------------------------------------------------
+  # SYNCPOLICY : c'est CE bloc qui rend le deploiement AUTOMATIQUE
+  # ---------------------------------------------------------------------------
+  # Sans "automated", Argo CD detecterait bien l'ecart entre Git et le cluster,
+  # mais attendrait un clic sur "Sync". Le sujet demande un deploiement
+  # automatique : ce bloc est donc indispensable.
+  syncPolicy:
+    automated:
+      # prune : supprime du cluster les objets retires du depot Git.
+      prune: true
+      # selfHeal : annule toute modification faite a la main dans le cluster
+      # (par exemple un "kubectl edit") pour revenir a l'etat decrit dans Git.
+      # Git reste la seule source de verite.
+      selfHeal: true
+    syncOptions:
+      # Cree le namespace de destination s'il manque. Ici il existe deja
+      # (cree par setup.sh), mais cela rend le manifest autonome.
+      - CreateNamespace=true
