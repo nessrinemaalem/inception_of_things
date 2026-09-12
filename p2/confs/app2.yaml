@@ -1,13 +1,4 @@
-# =============================================================================
-# app2 — application accessible via le host "app2.com"
-#
-# Structure IDENTIQUE a app1.yaml (ConfigMap + Deployment + Service).
-# UNE SEULE difference de fond : "replicas: 3" (exige par le sujet).
-# =============================================================================
-
-# -----------------------------------------------------------------------------
-# 1. ConfigMap : la page HTML
-# -----------------------------------------------------------------------------
+# app2 : repond au host app2.com (routage defini dans ingress.yaml)
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -28,18 +19,11 @@ data:
     </html>
 
 ---
-# -----------------------------------------------------------------------------
-# 2. Deployment : 3 Pods nginx identiques
-# -----------------------------------------------------------------------------
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: app2
 spec:
-  # >>> LA LIGNE DEMANDEE PAR LE SUJET <<<
-  # Le Deployment maintient en permanence 3 Pods construits sur le meme
-  # template. On n'ecrit pas trois fois le Pod : on declare la quantite voulue
-  # et le controleur s'en charge (recreation automatique si l'un meurt).
   replicas: 3
 
   selector:
@@ -77,12 +61,6 @@ spec:
             name: app2-html
 
 ---
-# -----------------------------------------------------------------------------
-# 3. Service : une seule adresse stable devant les 3 Pods
-# -----------------------------------------------------------------------------
-# Rien a changer par rapport a app1 : le Service selectionne par label, donc il
-# trouve 1 Pod ou 100 Pods sans que sa definition bouge. Il repartit le trafic
-# entre tous les Pods "Ready" qui portent le label app=app2.
 apiVersion: v1
 kind: Service
 metadata:

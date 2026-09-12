@@ -19,10 +19,10 @@ section "Etat des VM Vagrant"
 vagrant status
 
 section "Nodes du cluster K3s (kubectl get nodes -o wide, depuis imaalemS)"
-vagrant ssh imaalemS -c "kubectl get nodes -o wide"
+vagrant ssh imaalemS -c "kubectl get nodes -o wide" -- -T
 
 section "Verification : les 2 nodes doivent etre Ready"
-READY_COUNT=$(vagrant ssh imaalemS -c "kubectl get nodes --no-headers" | tr -d '\r' | awk '$2 == "Ready"' | wc -l)
+READY_COUNT=$(vagrant ssh imaalemS -c "kubectl get nodes --no-headers" -- -T | tr -d '\r' | awk '$2 == "Ready"' | wc -l)
 
 if [ "${READY_COUNT}" -eq 2 ]; then
   echo -e "${GREEN}OK : les 2 nodes (imaalemS + imaalemSW) sont Ready${NC}"
@@ -32,11 +32,11 @@ else
 fi
 
 section "Pods systeme (kube-system)"
-vagrant ssh imaalemS -c "kubectl get pods -A"
+vagrant ssh imaalemS -c "kubectl get pods -A" -- -T
 
 section "Test SSH sans mot de passe sur les 2 VM"
-vagrant ssh imaalemS -c "hostname" && echo -e "${GREEN}OK : SSH imaalemS${NC}"
-vagrant ssh imaalemSW -c "hostname" && echo -e "${GREEN}OK : SSH imaalemSW${NC}"
+vagrant ssh imaalemS -c "hostname" -- -T && echo -e "${GREEN}OK : SSH imaalemS${NC}"
+vagrant ssh imaalemSW -c "hostname" -- -T && echo -e "${GREEN}OK : SSH imaalemSW${NC}"
 
 echo
 echo -e "${GREEN}${BOLD}Verification terminee avec succes.${NC}"

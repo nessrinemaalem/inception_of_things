@@ -1,46 +1,31 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-# p2 — une seule VM, K3s en mode server, 3 applications routees par un Ingress.
-#
-# /!\ AVANT DE LANCER : arreter la p1.
-#     cd ../p1 && vagrant halt
-# Les deux environnements se disputent l'IP 192.168.56.110 ET le nom de
-# domaine libvirt "imaalemS" (a cause de default_prefix = "").
-#
-# Provider libvirt/KVM (et non VirtualBox) : cette machine hote est elle-meme
-# une VM, et VirtualBox dans VirtualBox est instable en virtualisation
-# imbriquee (Guru Meditation, derive d'horloge).
+# Avant de lancer : arreter la p1 (cd ../p1 && vagrant halt).
+# Les deux environnements se disputent l'IP 192.168.56.110 et le nom de
+# domaine libvirt "imaalemS".
 ENV['VAGRANT_DEFAULT_PROVIDER'] = 'libvirt'
 
 Vagrant.configure("2") do |config|
-  # Debian 13 (trixie) = derniere version stable de Debian, avec une variante
-  # libvirt disponible sur la box officielle.
   config.vm.box = "debian/trixie64"
 
-  # Partage du dossier p2/ dans la VM sous /vagrant : c'est par la que le
-  # script de provisioning lit les manifests (/vagrant/confs).
-  # 9p : partage live, sans demon NFS a installer cote hote.
+  # 9p : partage live sans demon NFS cote hote. Le provisioning y lit les
+  # manifests (/vagrant/confs).
   config.vm.synced_folder ".", "/vagrant", type: "9p", accessmode: "squash"
 
   config.vm.define "imaalemS" do |server|
     server.vm.hostname = "imaalemS"
-
-    # Donne a la VM l'IP 192.168.56.110, joignable directement depuis l'hote :
-    # c'est ce qui fait marcher "curl 192.168.56.110".
     server.vm.network "private_network", ip: "192.168.56.110"
 
     server.vm.provider "libvirt" do |lv|
-      lv.default_prefix = ""   # nom de domaine libvirt = "imaalemS" (sans prefixe)
-      lv.cpus = 1              # minimum impose par le sujet
-      lv.memory = 1024         # haut de la fourchette autorisee (512-1024) :
-                               # K3s + Traefik + 5 pods, autant prendre la marge
+      lv.default_prefix = ""
+      lv.cpus = 1
+      lv.memory = 1024
       # NE PAS mettre lv.graphics_type = "none" : avec vagrant-libvirt 0.11.2
-      # cela retire aussi la carte video du domaine. Sans VGA, SeaBIOS boucle
-      # indefiniment sur l'enumeration du bus PCI : la VM tourne a 100% de CPU
-      # sans jamais atteindre GRUB, et Vagrant echoue sur "Waiting for domain
-      # to get an IP address...". Le VNC par defaut n'ouvre aucune fenetre,
-      # on reste donc bien en headless.
+      # cela retire aussi la carte video, et sans VGA SeaBIOS boucle
+      # indefiniment sur l'enumeration du bus PCI. La VM tourne alors a 100%
+      # de CPU sans jamais atteindre GRUB. Le VNC par defaut n'ouvre aucune
+      # fenetre : on reste headless sans cette option.
     end
 
     server.vm.provision "shell", path: "scripts/k3s-server.sh"

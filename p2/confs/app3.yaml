@@ -1,15 +1,5 @@
-# =============================================================================
-# app3 — application par DEFAUT
-#
-# Contrairement a app1 et app2, app3 n'est associee a aucun nom d'hote :
-# elle repond a tout ce qui ne matche ni app1.com ni app2.com (dont un simple
-# "curl 192.168.56.110"). Cette particularite ne se joue PAS ici : ce fichier
-# est un clone d'app1.yaml. C'est l'Ingress qui exprime la regle par defaut.
-# =============================================================================
-
-# -----------------------------------------------------------------------------
-# 1. ConfigMap : la page HTML
-# -----------------------------------------------------------------------------
+# app3 : application par defaut, repond a tout autre host.
+# La regle qui l'impose est dans ingress.yaml, rien ici ne la revele.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -30,9 +20,6 @@ data:
     </html>
 
 ---
-# -----------------------------------------------------------------------------
-# 2. Deployment : une seule replique
-# -----------------------------------------------------------------------------
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -75,9 +62,6 @@ spec:
             name: app3-html
 
 ---
-# -----------------------------------------------------------------------------
-# 3. Service
-# -----------------------------------------------------------------------------
 apiVersion: v1
 kind: Service
 metadata:

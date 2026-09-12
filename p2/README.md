@@ -12,10 +12,10 @@ trois applications web routées par nom d'hôte :
 ## Prérequis de l'hôte
 
 Vagrant + le plugin **vagrant-libvirt**, libvirt/KVM et QEMU doivent être
-installés. Le script de la p1 fait tout, il n'y a rien à dupliquer :
+installés. Le script à la racine du dépôt s'en charge (commun à p1 et p2) :
 
 ```bash
-sudo bash ../p1/scripts/host-setup.sh
+sudo bash ../host-setup.sh
 ```
 
 Puis se déconnecter/reconnecter (pour que le groupe `libvirt` prenne effet).
