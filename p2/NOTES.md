@@ -162,6 +162,50 @@ dans une ligne `Default backend:` séparée plutôt que parmi les règles.
 
 ---
 
+## Démonstration en direct : inventer un host devant le correcteur
+
+Le plus visuel pour prouver la règle par défaut : créer un nom d'hôte à la
+volée et montrer qu'il tombe sur app3.
+
+```bash
+sudo sh -c 'echo "192.168.56.110 nimportequoi.com" >> /etc/hosts'
+```
+
+Puis ouvrir **http://nimportequoi.com** dans le navigateur → page rouge,
+« Hello from app3 ».
+
+Ce que ça démontre : aucune machine ne s'appelle `nimportequoi.com`, rien n'a
+été configuré côté cluster, et pourtant ça répond. La règle sans `host` de
+l'Ingress attrape **tout** ce qui ne matche ni app1.com ni app2.com.
+
+Rappel de la même ligne pour app1 et app2 (nécessaire seulement pour le
+navigateur, jamais pour curl) :
+
+```bash
+sudo sh -c 'echo "192.168.56.110 app1.com app2.com" >> /etc/hosts'
+```
+
+⚠️ Toujours taper `http://` devant : sinon le navigateur tente HTTPS et rien
+n'écoute sur le port 443.
+
+**Avec curl, aucune entrée n'est nécessaire** — curl se connecte à l'IP et
+fabrique l'en-tête lui-même :
+
+```bash
+curl -H "Host: nimportequoi.com" 192.168.56.110
+```
+
+C'est la différence à savoir expliquer : le navigateur doit **résoudre** le nom
+(donc `/etc/hosts`), curl non.
+
+Pour nettoyer après la correction :
+
+```bash
+sudo sed -i '/192.168.56.110/d' /etc/hosts
+```
+
+---
+
 ## Commandes de debug
 
 ```bash
