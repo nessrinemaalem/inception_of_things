@@ -27,16 +27,19 @@ else
   # Ne PAS ajouter "--disable traefik" comme en p1 : Traefik est l'Ingress
   # Controller, sans lui l'objet Ingress existe mais rien ne l'applique.
   #
-  # metrics-server (kubectl top) et local-path-provisioner (volumes
-  # persistants) sont installes par defaut et inutiles ici : on les retire
-  # pour tenir dans les 1024 Mo imposes par le sujet.
+  # metrics-server (kubectl top) et le provisionneur de volumes persistants
+  # sont installes par defaut et inutiles ici : on les retire pour tenir dans
+  # les 1024 Mo imposes par le sujet.
+  # Attention : le composant s'appelle "local-storage" dans --disable, alors
+  # que son pod s'appelle "local-path-provisioner". K3s ignore silencieusement
+  # un nom invalide.
   echo ">>> Installation de K3s..."
   curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server \
     --node-ip=${SERVER_IP} \
     --advertise-address=${SERVER_IP} \
     --flannel-iface=${IFACE} \
     --disable metrics-server \
-    --disable local-path-provisioner \
+    --disable local-storage \
     --write-kubeconfig-mode 644" sh -s -
 fi
 
