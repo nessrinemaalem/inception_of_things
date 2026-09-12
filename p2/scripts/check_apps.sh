@@ -41,16 +41,3 @@ echo
 vagrant ssh imaalemS -c "kubectl get ingress" -- -T
 echo
 vagrant ssh imaalemS -c "kubectl describe ingress apps-ingress" -- -T
-
-# ============================================================================
-# DEMO OPTIONNELLE : le Deployment recree un Pod supprime.
-# A copier-coller dans le terminal si un correcteur creuse les repliques.
-#
-#   POD=$(vagrant ssh imaalemS -c "kubectl get pods -l app=app2 \
-#     -o jsonpath='{.items[0].metadata.name}'" -- -T)
-#   vagrant ssh imaalemS -c "kubectl delete pod $POD" -- -T
-#   vagrant ssh imaalemS -c "kubectl get pods -l app=app2" -- -T
-#
-# Attention : "kubectl delete pod -l app=app2 | head -1" supprimerait les 3,
-# head ne filtre que l'affichage.
-# ============================================================================

@@ -230,24 +230,50 @@ Traefik — ni dans l'app, ni dans le Service.
 ## Preuve des 3 répliques d'app2
 
 Le `curl` ne prouve **rien** (les 3 Pods servent le même HTML). La preuve est
-côté `kubectl` :
+côté `kubectl`.
+
+Se connecter à la VM :
 
 ```bash
-kubectl get deployment app2          # -> READY 3/3
-kubectl get pods -l app=app2 -o wide # -> 3 Pods, 3 IP différentes
+cd ~/Bureau/iot/p2
+vagrant ssh imaalemS
 ```
 
-Démo d'auto-réparation (`./scripts/check_apps.sh --demo`) : on supprime un Pod,
-le Deployment le recrée immédiatement. C'est la démonstration la plus courte de
-ce qu'apporte Kubernetes par rapport à `docker run`.
-
-⚠️ `kubectl delete pod -l app=app2 | head -1` supprimerait les **3** Pods :
-`head` ne filtre que l'affichage. Pour n'en cibler qu'un :
+Puis, dans la VM :
 
 ```bash
-POD=$(kubectl get pods -l app=app2 -o jsonpath='{.items[0].metadata.name}')
-kubectl delete pod "$POD"
+kubectl get deployment app2
 ```
+```bash
+kubectl get pods -l app=app2 -o wide
+```
+
+`READY 3/3` d'un côté, trois Pods avec trois IP différentes de l'autre.
+
+Le `-l app=app2` est intéressant à commenter : tu exécutes à la main la
+**requête par label** que le Service pose en interne pour trouver ses Pods.
+
+### Démo d'auto-réparation
+
+Supprimer un Pod devant le correcteur et montrer que le Deployment le recrée :
+
+```bash
+kubectl get pods -l app=app2
+```
+```bash
+kubectl delete pod $(kubectl get pods -l app=app2 -o jsonpath='{.items[0].metadata.name}')
+```
+```bash
+kubectl get pods -l app=app2
+```
+
+Le troisième affichage montre un Pod en `ContainerCreating` avec un nom neuf :
+le Deployment a déjà réagi. C'est la démonstration la plus courte de ce
+qu'apporte Kubernetes par rapport à `docker run`.
+
+⚠️ Ne **pas** faire `kubectl delete pod -l app=app2 | head -1` : ça supprime
+les **3** Pods, `head` ne filtre que l'affichage. D'où le `jsonpath` qui cible
+`items[0]`, un seul Pod.
 
 ---
 

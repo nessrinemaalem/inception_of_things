@@ -61,6 +61,55 @@ On modifie `v1` → `v2` dans Git, on pousse, et le Pod est remplacé **sans auc
 
 ---
 
+## Démo GitOps : changer la version devant le correcteur
+
+À taper dans l'ordre. Rien de tout cela ne touche au cluster directement :
+c'est Argo CD qui déploie.
+
+**1. Changer le tag dans le dépôt surveillé**
+
+```bash
+cd ~/Bureau/imaalem-iot-app
+```
+```bash
+sed -i 's|playground:v1|playground:v2|' deployment.yaml
+```
+```bash
+git commit -am "Passage en v2" && git push
+```
+
+**2. Forcer Argo CD à vérifier tout de suite**
+
+```bash
+kubectl -n argocd patch application playground --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
+```
+
+**3. Vérifier que le redéploiement s'est fait tout seul**
+
+```bash
+kubectl -n argocd get application
+```
+```bash
+kubectl -n dev get deployment playground -o jsonpath='{.spec.template.spec.containers[0].image}'
+```
+```bash
+curl localhost:8888
+```
+
+**Pour revenir en v1**, rejouer les trois étapes en inversant `v2` et `v1` :
+
+```bash
+cd ~/Bureau/imaalem-iot-app && sed -i 's|playground:v2|playground:v1|' deployment.yaml && git commit -am "Retour en v1" && git push
+```
+```bash
+kubectl -n argocd patch application playground --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
+```
+```bash
+curl localhost:8888
+```
+
+---
+
 ## L'objet `Application`
 
 ⚠️ **Piège classique** : l'objet `Application` vit dans le namespace **`argocd`**,

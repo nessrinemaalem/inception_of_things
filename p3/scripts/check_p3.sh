@@ -47,26 +47,3 @@ echo
 echo "curl localhost:8888"
 curl -s localhost:8888
 echo
-
-# ============================================================================
-# DEMO GITOPS : changer la version depuis GitHub et voir le cluster suivre.
-# A copier-coller dans le terminal devant le correcteur.
-#
-#   1. Changer le tag dans le depot surveille par Argo CD :
-#        cd ~/Bureau/imaalem-iot-app
-#        sed -i 's|playground:v1|playground:v2|' deployment.yaml
-#        git commit -am "Passage en v2" && git push
-#
-#   2. Forcer Argo CD a verifier tout de suite.
-#      Sans cela il interroge le depot toutes les ~3 min (mesure : 181 s).
-#      Avec : 5 s.
-#        kubectl -n argocd patch application playground --type merge \
-#          -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
-#
-#   3. Verifier que le redeploiement s'est fait tout seul :
-#        curl localhost:8888
-#        kubectl -n dev get deployment playground \
-#          -o jsonpath='{.spec.template.spec.containers[0].image}'
-#
-#   Pour revenir en v1 : refaire les 3 etapes en inversant v2 et v1.
-# ============================================================================
